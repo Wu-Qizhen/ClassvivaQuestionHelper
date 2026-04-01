@@ -6,15 +6,17 @@
 
 // ==UserScript==
 // @name         Classviva Question Helper | 题式精萃
-// @description  智能提取 Classviva 题目、处理 LaTeX 公式，支持一键复制
+// @description  智能提取 Classviva 题目、处理 LaTeX 公式，支持一键复制，可附加自定义提示词
 // @author       Code IntelliX
-// @version      0.1
+// @version      0.2
 // @icon         https://www.classviva.org/pluginfile.php?file=%2F1%2Fcore_admin%2Flogocompact%2F100x100%2F1731391655%2Ffavicon.png
 // @match        *://*.classviva.org/*
 // @match        *://*.classviva.hkust-gz.edu.cn/*
 // @namespace    http://tampermonkey.net/
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @license      MIT
 // ==/UserScript==
 
@@ -24,9 +26,15 @@
     // ========== 配置 ==========
     const CONFIG = {
         debug: false,
-        version: '0.1',
+        version: '0.2',
         author: 'Code IntelliX',
         github: 'https://github.com/Wu-Qizhen/ClassvivaQuestionHelper'
+    };
+
+    // 默认提示词配置
+    const DEFAULT_CONFIG = {
+        enablePrompt: false,
+        promptText: '请使用 LaTeX 语法给出最终解答，并确保公式格式正确'
     };
 
     // ========== 日志工具 ==========
@@ -37,6 +45,22 @@
     };
 
     logger.log('脚本已加载，版本 ', CONFIG.version);
+
+    // ========== 存储管理 ==========
+    const StorageManager = {
+        getEnablePrompt() {
+            return GM_getValue('cv_enable_prompt', DEFAULT_CONFIG.enablePrompt);
+        },
+        setEnablePrompt(value) {
+            GM_setValue('cv_enable_prompt', value);
+        },
+        getPromptText() {
+            return GM_getValue('cv_prompt_text', DEFAULT_CONFIG.promptText);
+        },
+        setPromptText(text) {
+            GM_setValue('cv_prompt_text', text);
+        }
+    };
 
     // ========== 样式管理 ==========
     const StyleManager = {
@@ -175,6 +199,107 @@
                     line-height: 1.4;
                 }
                 
+                /* 设置区域样式 */
+                .cv-settings-section {
+                    margin: 0 0 20px;
+                }
+                
+                .cv-title {
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin-bottom: 15px;
+                    color: #000;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                
+                .cv-settings-item {
+                    margin-left: 0;
+                    margin-bottom: 5px;
+                }
+                
+                /* 定位伪元素 */
+                .cv-checkbox-label {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    cursor: pointer;
+                    font-weight: 500;
+                    color: #555;
+                    position: relative; /* 为绝对定位的子元素提供参考 */
+                }
+
+                /* 隐藏原生 input */
+                .cv-checkbox-label input {
+                    position: absolute;
+                    opacity: 0; /* 透明 */
+                    width: 0;
+                    height: 0;
+                    margin: 0;
+                    padding: 0;
+                }
+                
+                /* 绘制方框 */
+                .cv-checkbox-label::before {
+                    content: '';
+                    width: 16px;
+                    height: 16px;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    background-color: #fff;
+                    transition: all 0.2s;
+                    flex-shrink: 0; /* 防止被文字挤压 */
+                }
+                
+                /* 绘制“勾” */
+                .cv-checkbox-label::after {
+                    content: '';
+                    position: absolute;
+                    left: 6px; /* 勾的水平位置微调 */
+                    top: 5px; /* 勾的垂直位置微调 */
+                    width: 5px;
+                    height: 8px;
+                    border: solid white;
+                    border-width: 0 2px 2px 0; /* 勾的粗细 */
+                    transform: rotate(45deg) scale(0);
+                    transition: transform 0.2s;
+                }
+                
+                /* 选中状态改变方框颜色和显示勾 */
+                .cv-checkbox-label:has(input:checked)::before {
+                    background-color: #409eff;
+                    border-color: #409eff;
+                }
+                
+                .cv-checkbox-label:has(input:checked)::after {
+                    transform: rotate(45deg) scale(1); /* 恢复大小，显示勾 */
+                }
+                
+                .cv-prompt-textarea {
+                    width: 100%;
+                    border: 2px solid #f8f9fa;
+                    border-radius: 10px;
+                    background: #f8f9fa;
+                    padding: 10px;
+                    font-size: 12px;
+                    font-family: inherit;
+                    resize: vertical;
+                    transition: border-color 0.2s;
+                    box-sizing: border-box;
+                }
+                
+                .cv-prompt-textarea:focus {
+                    outline: none;
+                    border-color: #67c23a;
+                }
+                
+                .cv-hint-text {
+                    font-size: 12px;
+                    color: #555;
+                    margin-bottom: 5px;
+                }
+                
                 .cv-version-info {
                     display: flex;
                     align-items: center;
@@ -216,28 +341,10 @@
                     background: #3375b9;
                 }
                 
-                .cv-button:focus,
-                .cv-button:active {
-                    transform: scale(0.98) !important;
-                }
-                
                 /* 导航栏图标样式 */
                 .cv-nav-icon {
                     position: relative;
                     cursor: pointer;
-                }
-                
-                .cv-nav-badge {
-                    position: absolute;
-                    top: -5px;
-                    right: -5px;
-                    background: #dc3545;
-                    color: white;
-                    font-size: 12px;
-                    padding: 2px 5px;
-                    border-radius: 10px;
-                    min-width: 16px;
-                    text-align: center;
                 }
                 
                 /* 通知样式 */
@@ -264,6 +371,23 @@
         backdrop: null,
         modal: null,
         isInitialized: false,
+        enableCheckbox: null,
+        promptTextarea: null,
+
+        reset() {
+            if (this.backdrop && this.backdrop.parentNode) {
+                this.backdrop.remove();
+            }
+            if (this.modal && this.modal.parentNode) {
+                this.modal.remove();
+            }
+            this.backdrop = null;
+            this.modal = null;
+            this.isInitialized = false;
+            this.enableCheckbox = null;
+            this.promptTextarea = null;
+            logger.log('模态框已重置');
+        },
 
         init() {
             if (this.isInitialized) return;
@@ -289,7 +413,29 @@
                     ">✕</button>
                 </div>
                 <div class="cv-modal-body">
-                    <!-- 特征项保持不变 -->
+                     <!-- 设置区域：提示词选项 -->
+                    <div class="cv-settings-section">
+                        <div class="cv-title">
+                            <span>⚙️</span> 设置
+                        </div>
+                        <div class="cv-settings-item">
+                            <label class="cv-checkbox-label">
+                                <input type="checkbox" id="cv-prompt-enable">
+                                <span>启用提示词附加</span>
+                            </label>
+                            <div style="margin-left: 26px;">
+                                <div class="cv-hint-text">
+                                    💡 开启后，复制题目时会在末尾自动附加此提示词，方便向 AI 提问
+                                </div>
+                                <textarea id="cv-prompt-text" class="cv-prompt-textarea" rows="3" placeholder="输入附加提示词，例如：请用 LaTeX 语法给出最终解答"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 功能特性 -->
+                    <div class="cv-title">
+                        <span>⭐</span> 功能特性
+                    </div>
                     <div class="cv-feature-item">
                         <span class="cv-feature-icon">📋</span>
                         <div class="cv-feature-text">
@@ -311,19 +457,19 @@
                             点击按钮即可复制题目内容，无需手动选择
                         </div>
                     </div>
-                    <div class="cv-feature-item">
+                    <!-- <div class="cv-feature-item">
                         <span class="cv-feature-icon">🎯</span>
                         <div class="cv-feature-text">
                             <strong>即将推出</strong><br>
                             自动跳转与自动填充、批量处理等功能
                         </div>
-                    </div>
+                    </div> -->
                 </div>
                 <div class="cv-modal-footer">
                     <div class="cv-version-info">
                         <span>Version ${CONFIG.version} | Developed by ${CONFIG.author}</span>
                     </div>
-                    <button class="cv-button cv-button-secondary" onclick="window.open('${CONFIG.github}', '_blank')">
+                    <button class="cv-button cv-button-secondary" id="cv-github-btn">
                         项目主页
                     </button>
                     <button class="cv-button cv-fun-close">
@@ -332,7 +478,28 @@
                 </div>
             `;
 
-            // 添加事件监听
+            // 获取设置元素
+            this.enableCheckbox = this.modal.querySelector('#cv-prompt-enable');
+            this.promptTextarea = this.modal.querySelector('#cv-prompt-text');
+
+            // 加载存储的设置
+            this._loadSettings();
+
+            // 绑定设置变化事件（实时保存）
+            if (this.enableCheckbox) {
+                this.enableCheckbox.addEventListener('change', () => {
+                    StorageManager.setEnablePrompt(this.enableCheckbox.checked);
+                    logger.log('提示词启用状态已保存：', this.enableCheckbox.checked);
+                });
+            }
+            if (this.promptTextarea) {
+                this.promptTextarea.addEventListener('input', () => {
+                    StorageManager.setPromptText(this.promptTextarea.value);
+                    logger.log('提示词内容已保存');
+                });
+            }
+
+            // 绑定关闭按钮
             this.modal.querySelectorAll('.cv-fun-close').forEach(btn => {
                 // 添加鼠标事件
                 /*btn.addEventListener('mouseover', (e) => {
@@ -356,6 +523,14 @@
                 btn.addEventListener('click', () => this.hide());
             });
 
+            // 项目主页按钮
+            const githubBtn = this.modal.querySelector('#cv-github-btn');
+            if (githubBtn) {
+                githubBtn.addEventListener('click', () => {
+                    window.open(CONFIG.github, '_blank');
+                });
+            }
+
             document.body.appendChild(this.backdrop);
             document.body.appendChild(this.modal);
             this.isInitialized = true;
@@ -363,8 +538,28 @@
             logger.log('模态框已初始化');
         },
 
+        _loadSettings() {
+            if (this.enableCheckbox) {
+                this.enableCheckbox.checked = StorageManager.getEnablePrompt();
+            }
+            if (this.promptTextarea) {
+                this.promptTextarea.value = StorageManager.getPromptText();
+            }
+        },
+
+        // 每次显示时同步最新设置（确保外部修改后显示正确）
+        _syncSettings() {
+            if (this.enableCheckbox) {
+                this.enableCheckbox.checked = StorageManager.getEnablePrompt();
+            }
+            if (this.promptTextarea) {
+                this.promptTextarea.value = StorageManager.getPromptText();
+            }
+        },
+
         show() {
             if (!this.isInitialized) this.init();
+            this._syncSettings(); // 显示时同步最新设置
 
             this.backdrop.classList.add('show');
             this.modal.classList.add('show');
@@ -573,14 +768,29 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                const content = ContentExtractor.extract(contentElement);
-                GM_setClipboard(content);
+                // 提取题目原始内容
+                const originalContent = ContentExtractor.extract(contentElement);
+
+                // 处理提示词附加
+                let finalContent = originalContent;
+                const enablePrompt = StorageManager.getEnablePrompt();
+                const promptText = StorageManager.getPromptText();
+
+                if (enablePrompt && promptText && promptText.trim() !== '') {
+                    // 在末尾附加提示词，增加两个换行符使格式更清晰
+                    finalContent = originalContent + '\n\n' + promptText.trim();
+                    logger.log('已附加提示词');
+                }
+
+                // 复制到剪贴板
+                GM_setClipboard(finalContent);
 
                 // 显示反馈
                 button.textContent = '✓ 已复制';
                 button.style.background = 'linear-gradient(135deg, #4caf50 0%, #3ecc5f 100%)';
                 const lastNumber = questionId.split('-').pop();
-                NotificationManager.show(`✓ 题目 ${lastNumber} 已复制`);
+                const promptStatus = enablePrompt && promptText?.trim() ? '（含提示词）' : '';
+                NotificationManager.show(`✓ 题目 ${lastNumber} 已复制${promptStatus}`);
 
                 setTimeout(() => {
                     button.textContent = '复制题目';
@@ -659,6 +869,10 @@
 
             // 初始化样式
             StyleManager.init();
+
+            // 重置并初始化模态框（确保使用最新版本，包含设置区域）
+            ModalManager.reset();
+            ModalManager.init();
 
             // 初始化组件
             ButtonManager.init();
