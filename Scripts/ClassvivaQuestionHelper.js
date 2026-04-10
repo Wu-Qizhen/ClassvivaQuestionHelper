@@ -173,6 +173,15 @@
                     gap: 10px;
                 }
                 
+                .cv-modal {
+                    display: none; /* 默认隐藏，不占用交互 */
+                    /* 保留原有其他样式 */
+                }
+                
+                .cv-modal.show {
+                    display: block; /* 显示时恢复块级 */
+                }
+                
                 .cv-feature-item {
                     display: flex;
                     align-items: center;
